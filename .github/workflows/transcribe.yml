@@ -22,7 +22,7 @@ jobs:
           pip install -q torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -q fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.8.0/cpu
           pip install -q omnilingual-asr huggingface_hub demucs yt-dlp --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.8.0/cpu
-          pip install -q "pyarrow<17"
+          pip install -q "pyarrow<17" transformers
           pip list 2>/dev/null | grep -i -E "^(torch|fairseq2|numpy|pyarrow)"
       - uses: actions/cache@v4
         with:
@@ -54,6 +54,10 @@ jobs:
         if: steps.dl.outcome == 'success'
         continue-on-error: true
         run: python transcribe.py omniASR_CTC_300M "${{ inputs.lang }}" raw
+      - name: Transcribe, MMS 300M Yoruba-English (small, one pass)
+        if: steps.dl.outcome == 'success'
+        continue-on-error: true
+        run: python light.py LyngualLabs/mms-300m-yoruba-english raw
       - uses: actions/upload-artifact@v4
         if: always()
         with:
