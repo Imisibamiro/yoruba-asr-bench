@@ -20,7 +20,9 @@ jobs:
       - name: Python packages
         run: |
           pip install -q torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
-          pip install -q omnilingual-asr huggingface_hub demucs yt-dlp
+          pip install -q fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.8.0/cpu
+          pip install -q omnilingual-asr huggingface_hub demucs yt-dlp --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.8.0/cpu
+          pip list 2>/dev/null | grep -i -E "^(torch|fairseq2)"
       - uses: actions/cache@v4
         with:
           path: ~/.cache
