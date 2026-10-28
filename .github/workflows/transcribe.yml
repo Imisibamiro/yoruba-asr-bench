@@ -46,18 +46,18 @@ jobs:
           mkdir raw
           ffmpeg -loglevel error -i clip.* -ar 16000 -ac 1 -f segment -segment_time 30 raw/c%02d.wav
           ls raw
-      - name: Transcribe, Yoruba fine-tune (one word at a time)
+          mkdir raw10
+          ffmpeg -loglevel error -i clip.* -ar 16000 -ac 1 -f segment -segment_time 10 raw10/c%03d.wav
+      - name: Transcribe, NCAIR Yoruba (whisper-small, 10 s pieces)
         if: steps.dl.outcome == 'success'
         continue-on-error: true
-        run: python transcribe.py llm-yoruba "${{ inputs.lang }}" raw
-      - name: Transcribe, CTC 300M (one pass)
+        env: { HF_TOKEN: "${{ secrets.HF_TOKEN }}" }
+        run: python light.py NCAIR1/Yoruba-ASR raw10
+      - name: Transcribe, NCAIR Igbo (whisper-small, 10 s pieces)
         if: steps.dl.outcome == 'success'
         continue-on-error: true
-        run: python transcribe.py omniASR_CTC_300M "${{ inputs.lang }}" raw
-      - name: Transcribe, MMS 300M Yoruba-English (small, one pass)
-        if: steps.dl.outcome == 'success'
-        continue-on-error: true
-        run: python light.py LyngualLabs/mms-300m-yoruba-english raw
+        env: { HF_TOKEN: "${{ secrets.HF_TOKEN }}" }
+        run: python light.py NCAIR1/Igbo-ASR raw10
       - uses: actions/upload-artifact@v4
         if: always()
         with:
