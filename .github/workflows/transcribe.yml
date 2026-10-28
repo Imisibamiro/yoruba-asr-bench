@@ -1,0 +1,52 @@
+name: transcribe
+on:
+  workflow_dispatch:
+    inputs:
+      video_id: { description: "YouTube video id", required: true }
+      start: { description: "start hh:mm:ss", required: true }
+      end: { description: "end hh:mm:ss", required: true }
+      lang: { description: "language code", default: "yor_Latn" }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: System packages
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libsndfile1 && nproc && free -g
+      - name: Python packages
+        run: |
+          pip install -q torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -q omnilingual-asr huggingface_hub demucs yt-dlp
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache
+          key: models-v1
+      - name: Download audio section
+        id: dl
+        continue-on-error: true
+        run: |
+          start=$(date +%s)
+          yt-dlp -f 139/worstaudio --download-sections "*${{ inputs.start }}-${{ inputs.end }}" -o "clip.%(ext)s" "https://www.youtube.com/watch?v=${{ inputs.video_id }}"
+          echo "download took $(( $(date +%s) - start ))s"
+      - name: Isolate vocals
+        if: steps.dl.outcome == 'success'
+        run: |
+          start=$(date +%s)
+          ffmpeg -loglevel error -y -i clip.* -ar 44100 clip.wav
+          python -m demucs -n htdemucs_ft --two-stems vocals -d cpu -o sep clip.wav
+          echo "demucs took $(( $(date +%s) - start ))s"
+          mkdir chunks
+          ffmpeg -loglevel error -i sep/htdemucs_ft/clip/vocals.wav -ar 16000 -ac 1 -f segment -segment_time 30 chunks/c%02d.wav
+          ls chunks
+      - name: Transcribe
+        if: steps.dl.outcome == 'success'
+        run: python transcribe.py "${{ inputs.lang }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transcript
+          path: transcript.json
+          if-no-files-found: ignore
