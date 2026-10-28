@@ -2,7 +2,8 @@ name: transcribe
 on:
   workflow_dispatch:
     inputs:
-      video_id: { description: "YouTube video id", required: true }
+      video_id: { description: "YouTube video id (blank if audio_url)", required: false }
+      audio_url: { description: "direct audio link (used instead of YouTube)", required: false }
       start: { description: "start hh:mm:ss", required: true }
       end: { description: "end hh:mm:ss", required: true }
       lang: { description: "language code", default: "yor_Latn" }
@@ -29,7 +30,12 @@ jobs:
         continue-on-error: true
         run: |
           start=$(date +%s)
-          yt-dlp -f 139/worstaudio --download-sections "*${{ inputs.start }}-${{ inputs.end }}" -o "clip.%(ext)s" "https://www.youtube.com/watch?v=${{ inputs.video_id }}"
+          if [ -n "${{ inputs.audio_url }}" ]; then
+            curl -sL "${{ inputs.audio_url }}" -o full.mp3
+            ffmpeg -loglevel error -y -ss "${{ inputs.start }}" -to "${{ inputs.end }}" -i full.mp3 clip.mp3
+          else
+            yt-dlp -f 139/worstaudio --download-sections "*${{ inputs.start }}-${{ inputs.end }}" -o "clip.%(ext)s" "https://www.youtube.com/watch?v=${{ inputs.video_id }}"
+          fi
           echo "download took $(( $(date +%s) - start ))s"
       - name: Isolate vocals
         if: steps.dl.outcome == 'success'
