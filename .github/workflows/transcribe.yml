@@ -22,7 +22,8 @@ jobs:
           pip install -q torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -q fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.8.0/cpu
           pip install -q omnilingual-asr huggingface_hub demucs yt-dlp --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.8.0/cpu
-          pip list 2>/dev/null | grep -i -E "^(torch|fairseq2)"
+          pip install -q "pyarrow<17"
+          pip list 2>/dev/null | grep -i -E "^(torch|fairseq2|numpy|pyarrow)"
       - uses: actions/cache@v4
         with:
           path: ~/.cache
@@ -39,22 +40,23 @@ jobs:
             yt-dlp -f 139/worstaudio --download-sections "*${{ inputs.start }}-${{ inputs.end }}" -o "clip.%(ext)s" "https://www.youtube.com/watch?v=${{ inputs.video_id }}"
           fi
           echo "download took $(( $(date +%s) - start ))s"
-      - name: Isolate vocals
+      - name: Chunk raw audio (no vocal separation)
         if: steps.dl.outcome == 'success'
         run: |
-          start=$(date +%s)
-          ffmpeg -loglevel error -y -i clip.* -ar 44100 clip.wav
-          python -m demucs -n htdemucs_ft --two-stems vocals -d cpu -o sep clip.wav
-          echo "demucs took $(( $(date +%s) - start ))s"
-          mkdir chunks
-          ffmpeg -loglevel error -i sep/htdemucs_ft/clip/vocals.wav -ar 16000 -ac 1 -f segment -segment_time 30 chunks/c%02d.wav
-          ls chunks
-      - name: Transcribe
+          mkdir raw
+          ffmpeg -loglevel error -i clip.* -ar 16000 -ac 1 -f segment -segment_time 30 raw/c%02d.wav
+          ls raw
+      - name: Transcribe, Yoruba fine-tune (one word at a time)
         if: steps.dl.outcome == 'success'
-        run: python transcribe.py "${{ inputs.lang }}"
+        continue-on-error: true
+        run: python transcribe.py llm-yoruba "${{ inputs.lang }}" raw
+      - name: Transcribe, CTC 300M (one pass)
+        if: steps.dl.outcome == 'success'
+        continue-on-error: true
+        run: python transcribe.py omniASR_CTC_300M "${{ inputs.lang }}" raw
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: transcript
-          path: transcript.json
+          path: transcript-*.json
           if-no-files-found: ignore
