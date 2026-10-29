@@ -18,7 +18,7 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
-          pip install -q torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -q torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
           pip install -q "transformers>=4.53" accelerate librosa soundfile qwen-omni-utils timm
       - name: Fetch and unlock clips
         env: { GH_TOKEN: "${{ github.token }}", CLIP_KEY: "${{ secrets.CLIP_KEY }}" }
