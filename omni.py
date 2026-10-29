@@ -13,7 +13,7 @@ if which == "qwen":
     from qwen_omni_utils import process_mm_info
     name = "Qwen/Qwen2.5-Omni-3B"
     model = Qwen2_5OmniForConditionalGeneration.from_pretrained(name, torch_dtype=torch.bfloat16, device_map="cpu")
-    model.disable_talker()
+    if hasattr(model, 'talker'): model.disable_talker()
     proc = Qwen2_5OmniProcessor.from_pretrained(name)
     sysmsg = "You are Qwen, a virtual human developed by the Qwen Team, Alibaba Group, capable of perceiving auditory and visual inputs, as well as generating text and speech."
     for f in files:
@@ -24,6 +24,7 @@ if which == "qwen":
         inp = proc(text=text, audio=audios, images=images, videos=videos, return_tensors="pt", padding=True)
         t = time.time()
         ids = model.generate(**inp, return_audio=False, max_new_tokens=400, do_sample=False)
+        ids = ids[0] if isinstance(ids, tuple) else ids
         res = proc.batch_decode(ids[:, inp["input_ids"].shape[1]:], skip_special_tokens=True)[0]
         out[os.path.basename(f)] = {"secs": round(time.time() - t), "text": res}
         print(f"[qwen] {os.path.basename(f)} {time.time() - t:.0f}s", flush=True)
