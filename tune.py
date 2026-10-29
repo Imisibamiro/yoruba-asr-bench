@@ -123,8 +123,10 @@ def main():
             f"total_seconds={total_seconds:.3f}"
         )
         return 0
-    except Exception:
+    except Exception as exc:
+        import traceback
         total_seconds = time.perf_counter() - started
+        print("error", type(exc).__name__, [(f.name, f.lineno) for f in traceback.extract_tb(exc.__traceback__)])
         print(
             f"clips={len(clip_paths)} refs={len(ref_paths)} "
             f"failed=1 total_seconds={total_seconds:.3f}"
