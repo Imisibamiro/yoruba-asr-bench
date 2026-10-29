@@ -1,0 +1,37 @@
+name: omniasr
+on:
+  workflow_dispatch:
+    inputs:
+      tag: { description: "release tag holding tri.enc", required: true }
+      models: { description: "JSON list of models", default: '["ctc300m","llm300m"]' }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions: { contents: read }
+    strategy:
+      fail-fast: false
+      matrix: { model: "${{ fromJSON(inputs.models) }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libsndfile1 ffmpeg > /dev/null
+          pip install -q torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -q omnilingual-asr soundfile --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.8.0/cpu
+      - name: Fetch and unlock clips
+        env: { GH_TOKEN: "${{ github.token }}", CLIP_KEY: "${{ secrets.CLIP_KEY }}" }
+        run: |
+          gh release download "${{ inputs.tag }}" -p tri.enc -R "${{ github.repository }}"
+          openssl enc -d -aes-256-cbc -pbkdf2 -pass env:CLIP_KEY -in tri.enc | tar xz 2>/dev/null
+          ls tri/clips | wc -l
+      - name: Transcribe
+        env: { HF_TOKEN: "${{ secrets.HF_TOKEN }}" }
+        run: python omniasr.py ${{ matrix.model }}
+      - name: Lock results
+        env: { CLIP_KEY: "${{ secrets.CLIP_KEY }}" }
+        run: openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:CLIP_KEY -in omniasr-${{ matrix.model }}.json -out omniasr-${{ matrix.model }}.enc
+      - uses: actions/upload-artifact@v4
+        with: { name: "omniasr-${{ matrix.model }}", path: "omniasr-${{ matrix.model }}.enc", retention-days: 1 }
