@@ -1,0 +1,36 @@
+name: clips2
+on:
+  workflow_dispatch:
+    inputs:
+      tag: { description: "release tag holding clips.enc", required: true }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions: { contents: read }
+    strategy:
+      matrix: { shard: [0, 1, 2, 3, 4, 5] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          pip install -q torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -q transformers librosa audioop-lts || pip install -q transformers librosa
+      - uses: actions/cache@v4
+        with: { path: ~/.cache/huggingface, key: ncair-lid-models-v1 }
+      - name: Fetch and unlock clips
+        env: { GH_TOKEN: "${{ github.token }}", CLIP_KEY: "${{ secrets.CLIP_KEY }}" }
+        run: |
+          gh release download "${{ inputs.tag }}" -p clips.enc -R "${{ github.repository }}"
+          openssl enc -d -aes-256-cbc -pbkdf2 -pass env:CLIP_KEY -in clips.enc | tar xz 2>/dev/null
+      - name: Detect language and transcribe
+        env: { HF_TOKEN: "${{ secrets.HF_TOKEN }}" }
+        run: python clips2.py ${{ matrix.shard }} 6
+      - name: Lock results
+        env: { CLIP_KEY: "${{ secrets.CLIP_KEY }}" }
+        run: openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:CLIP_KEY -in out-${{ matrix.shard }}.json -out out-${{ matrix.shard }}.enc
+      - uses: actions/upload-artifact@v4
+        with: { name: "out-${{ matrix.shard }}", path: "out-${{ matrix.shard }}.enc", retention-days: 1 }
