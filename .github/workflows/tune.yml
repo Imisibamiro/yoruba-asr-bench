@@ -1,0 +1,33 @@
+name: tune
+on:
+  workflow_dispatch:
+    inputs:
+      tag: { description: "release tag holding tri.enc", required: true }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          pip install -q torch==2.0.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install -q numpy==1.26.4 librosa==0.10.1 essentia==2.1b6.dev1110 pyyaml==6.0.1
+          git clone --quiet --depth 1 https://github.com/raraz15/Discogs-VINet.git "$RUNNER_TEMP/Discogs-VINet"
+      - name: Fetch and unlock clips
+        env: { GH_TOKEN: "${{ github.token }}", CLIP_KEY: "${{ secrets.CLIP_KEY }}" }
+        run: |
+          gh release download "${{ inputs.tag }}" -p tri.enc -R "${{ github.repository }}" >/dev/null 2>&1
+          openssl enc -d -aes-256-cbc -pbkdf2 -pass env:CLIP_KEY -in tri.enc | tar xz 2>/dev/null
+          printf 'clips=%s refs=%s\n' "$(find tri/clips -maxdepth 1 -type f -name '*.wav' | wc -l)" "$(find tri/refs -maxdepth 1 -type f -name '*.m4a' | wc -l)"
+      - name: Tune matching
+        run: python tune.py "$RUNNER_TEMP/Discogs-VINet"
+      - name: Lock results
+        env: { CLIP_KEY: "${{ secrets.CLIP_KEY }}" }
+        run: openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:CLIP_KEY -in tune.json -out tune.enc
+      - uses: actions/upload-artifact@v4
+        with: { name: "tune", path: "tune.enc", retention-days: 1 }
