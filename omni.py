@@ -23,7 +23,7 @@ if which == "qwen":
         audios, images, videos = process_mm_info(conv, use_audio_in_video=False)
         inp = proc(text=text, audio=audios, images=images, videos=videos, return_tensors="pt", padding=True)
         t = time.time()
-        ids = model.generate(**inp, return_audio=False, max_new_tokens=400, do_sample=False)
+        ids = model.thinker.generate(**inp, max_new_tokens=400, do_sample=False)
         ids = ids[0] if isinstance(ids, tuple) else ids
         res = proc.batch_decode(ids[:, inp["input_ids"].shape[1]:], skip_special_tokens=True)[0]
         out[os.path.basename(f)] = {"secs": round(time.time() - t), "text": res}
